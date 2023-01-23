@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1</title>
+  <link rel="shortcut icon" href="#">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.3.0/sockjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+  <style>
+    .video_box{
+      width:18vw;
+      aspect-ratio: 1;
+      margin : 0.3vw;
+    }
+    #videoCollection{
+      float:left;
+      width : 20vw;
+      height : 90vh;
+      overflow : auto;
+    }
+    #mainVideo{
+      width : 100%;
+      height: 100%;
+    }
+    #mainVideoDiv{
+      float:right;
+      width : 75vw;
+      height: 90vh;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    room1
+    <button id ="videoOnOff" onclick="muteVideo()">Video off</button>
+	  <button id ="audioOnOff" onclick="muteAudio()">Audio off</button>
+  </div>
+  <div>
+    <div id="videoCollection">
+      <video muted id="my-video" class="video_box" autoplay></video>
+    </div>
+    <div id = "mainVideoDiv">
+      <video id="mainVideo" autoplay></video> 
+    </div>
+  </div>
+  <script>
+    let Sock = new SockJS("/websocket");
+    let client = Stomp.over(Sock);
+    client.debug = null;
+    let sessionId;
+    let localStream;
+    let roomNum = "1";
+    let peerConnList = {};
+    let configuration = {
+      iceServers: [
+        {
+          "urls": ["stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+            "stun:stun2.l.google.com:19302"]
+        }
+      ]
+    }
+
+    navigator.getUserMedia({
+      video: {
+        frameRate: 24,
+        width: {
+          min: 480, ideal: 720, max: 1280
+        },
+        aspectRatio: 1
+      },
+      audio: true
+    }, (stream) => {
+      localStream = stream;
+      document.getElementById("my-video").srcObject = localStream;
+    }, (error) => {
+      console.log(error);
+    })
+
+    client.connect({},function(){
+      sessionId = Sock._transport.url.split("/")[5];
+      console.log("my id : "+sessionId);
+      client.subscribe("/getData/"+roomNum+"/"+sessionId,function(e){
+        let data = JSON.parse(e.body);
+        handleData(data);
+      })
+      sendData({
+        "type" : "get_userList",
+        "from" : sessionId,
+        "data" : roomNum
+      })
+    })
+
+    function sendData(data){
+      console.log("send : "+data.type);
+      client.send("/sendData/data/"+roomNum,{},JSON.stringify(data));
+    }
+
+    function handleData(data){
+      console.log("get : "+data.type);
+      switch (data.type){
+      case "get_userList":
+        for (const user of data.data){
+          var peerConn = createPeerConn(user);
+          createAndSendOffer(sessionId,user,peerConn);
+        }
+        break;
+      case "connect":
+        var peerConn = createPeerConn(data.data);
+        peerConnList[data.data] = peerConn;
+        console.log(peerConnList);
+        break;
+      case "disconnect":
+        $("#"+data.from).remove();
+        delete peerConnList[data.from];
+        break;
+      case "candidate":
+        var peerConn = peerConnList[data.from];
+        peerConn.addIceCandidate(data.data);
+        break;
+      case "offer":
+        console.log(data.from);
+        console.log(peerConnList);
+        var peerConn = peerConnList[data.from];
+        console.log(peerConn);
+        peerConn.setRemoteDescription(data.data);
+        // .then(createAndSendAnswer(data.to,data.from,peerConn));
+        createAndSendAnswer(data.to,data.from,peerConn);
+        sendData({
+          "type" : "get_candidate",
+          "from" : data.from,
+          "to" : sessionId
+        });
+        break;
+      case "answer":
+        var peerConn = peerConnList[data.from];
+        peerConn.setRemoteDescription(data.data);
+        sendData({
+          "type" : "get_candidate",
+          "from" : data.from,
+          "to" : sessionId
+        })
+        break;
+      }
+    }
+
+    function createPeerConn(id){
+      console.log("create Conn "+id);
+      
+      let peerConn = new RTCPeerConnection(configuration);
+      
+      peerConn.addStream(localStream);
+
+      peerConn.onaddstream = (e) => {
+        console.log("get stream");
+        $("#videoCollection").append('<video id="'+id+'" class="video_box" autoplay></video>');
+        document.getElementById(id).srcObject = e.stream;
+        $("#"+id).click(function(){
+          document.getElementById("mainVideo").srcObject = document.getElementById(id).srcObject;
+        })
+      }
+
+      peerConn.onicecandidate = ((e) => {
+        if (e.candidate == null){return}
+        sendData({
+          "type" : "save_candidate",
+          "data" : e.candidate,
+          "from" : sessionId,
+          "to" : id
+        })
+      })
+      
+      peerConnList[id] = peerConn;
+
+      return peerConn
+    }
+
+
+    function createAndSendOffer(from,to,peerConn){
+      peerConn.createOffer((offer) => {
+				console.log("send offer to "+from)
+        peerConn.setLocalDescription(offer)
+				sendData({
+					"type": "ready_offer",
+					"data" : offer,
+          "from" : from,
+          "to" : to
+				})
+			}, (error) => {
+				console.log(error);
+			})
+    }
+
+    function createAndSendAnswer(from,to,peerConn){
+      console.log("create answer from " + from + " to " + to);
+      console.log(peerConn);
+      peerConn.createAnswer((answer) => {
+				peerConn.setLocalDescription(answer);
+				sendData({
+					"type" : "ready_answer",
+					"data": answer,
+          "from" : from,
+          "to" : to
+				})
+			}, error => {
+				console.log(error);
+			})
+    }
+    
+    let isAudio = true;
+		function muteAudio() {
+      $("#audioOnOff").text(isAudio ? "Audio on" : "Audio off");
+      isAudio = !isAudio;
+			localStream.getAudioTracks()[0].enabled = isAudio;
+		}
+
+		let isVideo = true;
+		function muteVideo() {
+      $("#videoOnOff").text(isVideo ? "Video on" : "Video off");
+			isVideo = !isVideo;
+			localStream.getVideoTracks()[0].enabled = isVideo;
+		}
+  </script>
+</body>
+</html>
