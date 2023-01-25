@@ -11,13 +11,13 @@
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
   <style>
     .video_box{
-      width:18vw;
+      width:15vw;
       aspect-ratio: 1;
       margin : 0.3vw;
     }
     #videoCollection{
       float:left;
-      width : 20vw;
+      width : 16vw;
       height : 90vh;
       overflow : auto;
     }
@@ -27,7 +27,7 @@
     }
     #mainVideoDiv{
       float:right;
-      width : 75vw;
+      width : 80vw;
       height: 90vh;
     }
   </style>
@@ -61,7 +61,19 @@
           "urls": ["stun:stun.l.google.com:19302",
             "stun:stun1.l.google.com:19302",
             "stun:stun2.l.google.com:19302"]
-        }
+        },
+        // {
+        //   'urls': 'turn:ip:port?transport=udp',
+        //   'credential': 'XXXXXXXXXXXXX',
+        //   'username': 'XXXXXXXXXXXXXXX'
+        // },
+        // {
+        //   'urls': 'turn:ip:port?transport=tcp',
+        //   'credential': 'XXXXXXXXXXXXX',
+        //   'username': 'XXXXXXXXXXXXXXX'
+        // }
+        // https://github.com/coturn/coturn
+        // turn 서버 추가
       ]
     }
 
@@ -85,7 +97,7 @@
         })
       } else {
         canIgetUserList = true;
-        cnosole.log("create stream is faster than connect");
+        console.log("create stream is faster than connect");
       }
       document.getElementById("my-video").srcObject = localStream;
     }, (error) => {
