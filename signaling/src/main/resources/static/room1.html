@@ -54,6 +54,7 @@
     let localStream;
     let roomNum = "1";
     let peerConnList = {};
+    let canIgetUserList = false;
     let configuration = {
       iceServers: [
         {
@@ -76,6 +77,16 @@
     }, (stream) => {
       console.log("create localstream complete");
       localStream = stream;
+      if (canIgetUserList){
+        sendData({
+          "type" : "get_userList",
+          "from" : sessionId,
+          "data" : roomNum
+        })
+      } else {
+        canIgetUserList = true;
+        cnosole.log("create stream is faster than connect");
+      }
       document.getElementById("my-video").srcObject = localStream;
     }, (error) => {
       console.log(error);
@@ -88,15 +99,16 @@
         let data = JSON.parse(e.body);
         handleData(data);
       })
-
-      setTimeout(() => {
+      if (canIgetUserList){
         sendData({
           "type" : "get_userList",
           "from" : sessionId,
           "data" : roomNum
         })
-      },100);
-
+      } else {
+        canIgetUserList = true;
+        console.log("connect is faster than create stream");
+      }
     })
 
     function sendData(data){
