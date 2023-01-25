@@ -74,6 +74,7 @@
       },
       audio: true
     }, (stream) => {
+      console.log("create localstream complete");
       localStream = stream;
       document.getElementById("my-video").srcObject = localStream;
     }, (error) => {
@@ -87,15 +88,19 @@
         let data = JSON.parse(e.body);
         handleData(data);
       })
-      sendData({
-        "type" : "get_userList",
-        "from" : sessionId,
-        "data" : roomNum
-      })
+
+      setTimeout(() => {
+        sendData({
+          "type" : "get_userList",
+          "from" : sessionId,
+          "data" : roomNum
+        })
+      },100);
+
     })
 
     function sendData(data){
-      console.log("send : "+data.type);
+      console.log("send : "+data.type + " to :" +data.to);
       client.send("/sendData/data/"+roomNum,{},JSON.stringify(data));
     }
 
@@ -127,19 +132,18 @@
         var peerConn = peerConnList[data.from];
         console.log(peerConn);
         peerConn.setRemoteDescription(data.data);
-        // .then(createAndSendAnswer(data.to,data.from,peerConn));
         createAndSendAnswer(data.to,data.from,peerConn);
         sendData({
-          "type" : "get_candidate",
+          "type" : "ready_remote",
           "from" : data.from,
           "to" : sessionId
-        });
+        })
         break;
       case "answer":
         var peerConn = peerConnList[data.from];
         peerConn.setRemoteDescription(data.data);
         sendData({
-          "type" : "get_candidate",
+          "type" : "ready_remote",
           "from" : data.from,
           "to" : sessionId
         })
@@ -166,7 +170,7 @@
       peerConn.onicecandidate = ((e) => {
         if (e.candidate == null){return}
         sendData({
-          "type" : "save_candidate",
+          "type" : "send_candidate",
           "data" : e.candidate,
           "from" : sessionId,
           "to" : id

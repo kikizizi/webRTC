@@ -12,6 +12,7 @@ public class ConnectData {
   private Map<String,String> userAndRoomNum = new HashMap<>();
   private Map<String,List<String>> userLists = new HashMap<>();
   private Map<String,List<Object>> candidateLists = new HashMap<>();
+  private Map<String,Boolean> isRemote = new HashMap<>();
 
   public static synchronized ConnectData getInstance() {  
       if (instance == null) {  
@@ -30,5 +31,9 @@ public class ConnectData {
 
   public Map<String,List<Object>> getCandidateLists(){
     return this.candidateLists;
+  }
+  
+  public Map<String,Boolean> getIsRemote(){
+    return this.isRemote;
   }
 }

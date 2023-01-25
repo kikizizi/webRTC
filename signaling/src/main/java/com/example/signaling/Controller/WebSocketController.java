@@ -26,9 +26,14 @@ public class WebSocketController {
     System.out.println("\ndtoType " + dto.getType()+"/ from: "+dto.getFrom()+" /to: " +dto.getTo()+"/roomNum:" + roomNum);
 
     String key = dto.getFrom()+"to"+dto.getTo();
-    SocketDto result = null;
+    
     Map<String,List<Object>> candidateLists = ConnectData.getInstance().getCandidateLists();
     List<Object> candidateList = null;
+
+    Map<String,Boolean> isRemote = ConnectData.getInstance().getIsRemote();
+    
+    SocketDto result = null;
+
     switch (dto.getType()){
     case ("get_userList"):
       Map<String,String> userAndRoomNum = ConnectData.getInstance().getUserAndRoomNum();
@@ -51,16 +56,21 @@ public class WebSocketController {
       }
       userList.add(dto.getFrom());
       break;
-    case ("save_candidate"):
+
+    case ("send_candidate"):
+      if (isRemote.get(key) != null){
+        result = new SocketDto(dto.getData(),"candidate",dto.getFrom(),dto.getTo());
+        temp.convertAndSend("/getData/"+roomNum+"/"+dto.getTo(), result);
+        return;
+      }
       candidateList = candidateLists.get(key);
-      System.out.println("before save candidate "+candidateList);
       if (candidateList == null){
         candidateList = new ArrayList<>();
         candidateLists.put(key, candidateList);
       }
       candidateList.add(dto.getData());
-      System.out.println("save candidate " + candidateList);
       break;
+
     case ("get_candidate"):
       candidateList = candidateLists.get(key);
       System.out.println("get candidate "+candidateList);
@@ -70,13 +80,26 @@ public class WebSocketController {
       }
       candidateLists.remove(key);
       break;
+
     case ("ready_offer"):
       dto.setType("offer");
       temp.convertAndSend("/getData/"+roomNum+"/"+dto.getTo(), dto);
       break;
+
     case ("ready_answer"):
       dto.setType("answer");
       temp.convertAndSend("/getData/"+roomNum+"/"+dto.getTo(), dto);
+      break;
+
+    case ("ready_remote"):
+      isRemote.put(key, true);
+      candidateList = candidateLists.get(key);
+      if (candidateList==null){return;}
+      for (Object candidate : candidateList){
+        result = new SocketDto(candidate,"candidate",dto.getFrom(),dto.getTo());
+        temp.convertAndSend("/getData/"+roomNum+"/"+dto.getTo(), result);
+      }
+      candidateLists.remove(key);
       break;
     }
   }
