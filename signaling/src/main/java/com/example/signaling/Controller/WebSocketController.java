@@ -44,14 +44,14 @@ public class WebSocketController {
         userList = new ArrayList<>();
         userLists.put(roomNum, userList);
       }
-      result = new SocketDto();
-      result.setData(userList);
-      result.setType("get_userList");
+      result = new SocketDto(userList, "get_userList", null, null);
+      // result.setData(userList);
+      // result.setType("get_userList");
       temp.convertAndSend("/getData/"+roomNum+"/"+dto.getFrom(), result);
       for (String id : userList){
-        result = new SocketDto();
-        result.setData(dto.getFrom());
-        result.setType("connect");
+        result = new SocketDto(dto.getFrom(), "connect", null, null);
+        // result.setData(dto.getFrom());
+        // result.setType("connect");
         temp.convertAndSend("/getData/"+roomNum+"/"+id, result);
       }
       userList.add(dto.getFrom());
@@ -69,16 +69,6 @@ public class WebSocketController {
         candidateLists.put(key, candidateList);
       }
       candidateList.add(dto.getData());
-      break;
-
-    case ("get_candidate"):
-      candidateList = candidateLists.get(key);
-      System.out.println("get candidate "+candidateList);
-      for (Object candidate : candidateList){
-        result = new SocketDto(candidate,"candidate",dto.getFrom(),dto.getTo());
-        temp.convertAndSend("/getData/"+roomNum+"/"+dto.getTo(), result);
-      }
-      candidateLists.remove(key);
       break;
 
     case ("ready_offer"):
