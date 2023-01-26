@@ -11,18 +11,40 @@
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
   <style>
     .video_box{
-      width:200px;
-      height:200px;
-      margin : 10px;
+      width:15vw;
+      aspect-ratio: 1;
+      margin : 0.3vw;
+    }
+    #videoCollection{
+      float:left;
+      width : 16vw;
+      height : 90vh;
+      overflow : auto;
+    }
+    #mainVideo{
+      width : 100%;
+      height: 100%;
+    }
+    #mainVideoDiv{
+      float:right;
+      width : 80vw;
+      height: 90vh;
     }
   </style>
 </head>
 <body>
-  room3
-  <button id ="videoOnOff" onclick="muteVideo()">Video off</button>
-	<button id ="audioOnOff" onclick="muteAudio()">Audio off</button>
-  <div id="videoCollection">
-    <video muted id="my-video" class="video_box" autoplay></video>
+  <div>
+    room1
+    <button id ="videoOnOff" onclick="muteVideo()">Video off</button>
+	  <button id ="audioOnOff" onclick="muteAudio()">Audio off</button>
+  </div>
+  <div>
+    <div id="videoCollection">
+      <video muted id="my-video" class="video_box" autoplay></video>
+    </div>
+    <div id = "mainVideoDiv">
+      <video id="mainVideo" autoplay></video> 
+    </div>
   </div>
   <script>
     let Sock = new SockJS("/websocket");
@@ -32,13 +54,26 @@
     let localStream;
     let roomNum = "3";
     let peerConnList = {};
+    let canIgetUserList = false;
     let configuration = {
       iceServers: [
         {
           "urls": ["stun:stun.l.google.com:19302",
             "stun:stun1.l.google.com:19302",
             "stun:stun2.l.google.com:19302"]
-        }
+        },
+        // {
+        //   'urls': 'turn:ip:port?transport=udp',
+        //   'credential': 'XXXXXXXXXXXXX',
+        //   'username': 'XXXXXXXXXXXXXXX'
+        // },
+        // {
+        //   'urls': 'turn:ip:port?transport=tcp',
+        //   'credential': 'XXXXXXXXXXXXX',
+        //   'username': 'XXXXXXXXXXXXXXX'
+        // }
+        // https://github.com/coturn/coturn
+        // turn 서버 추가
       ]
     }
 
@@ -48,11 +83,22 @@
         width: {
           min: 480, ideal: 720, max: 1280
         },
-        aspectRatio: 1.33333
+        aspectRatio: 1
       },
       audio: true
     }, (stream) => {
+      console.log("create localstream complete");
       localStream = stream;
+      if (canIgetUserList){
+        sendData({
+          "type" : "get_userList",
+          "from" : sessionId,
+          "data" : roomNum
+        })
+      } else {
+        canIgetUserList = true;
+        console.log("create stream is faster than connect");
+      }
       document.getElementById("my-video").srcObject = localStream;
     }, (error) => {
       console.log(error);
@@ -65,15 +111,20 @@
         let data = JSON.parse(e.body);
         handleData(data);
       })
-      sendData({
-        "type" : "get_userList",
-        "from" : sessionId,
-        "data" : roomNum
-      })
+      if (canIgetUserList){
+        sendData({
+          "type" : "get_userList",
+          "from" : sessionId,
+          "data" : roomNum
+        })
+      } else {
+        canIgetUserList = true;
+        console.log("connect is faster than create stream");
+      }
     })
 
     function sendData(data){
-      console.log("send : "+data.type);
+      console.log("send : "+data.type + " to :" +data.to);
       client.send("/sendData/data/"+roomNum,{},JSON.stringify(data));
     }
 
@@ -105,19 +156,18 @@
         var peerConn = peerConnList[data.from];
         console.log(peerConn);
         peerConn.setRemoteDescription(data.data);
-        // .then(createAndSendAnswer(data.to,data.from,peerConn));
         createAndSendAnswer(data.to,data.from,peerConn);
         sendData({
-          "type" : "get_candidate",
+          "type" : "ready_remote",
           "from" : data.from,
           "to" : sessionId
-        });
+        })
         break;
       case "answer":
         var peerConn = peerConnList[data.from];
         peerConn.setRemoteDescription(data.data);
         sendData({
-          "type" : "get_candidate",
+          "type" : "ready_remote",
           "from" : data.from,
           "to" : sessionId
         })
@@ -136,12 +186,15 @@
         console.log("get stream");
         $("#videoCollection").append('<video id="'+id+'" class="video_box" autoplay></video>');
         document.getElementById(id).srcObject = e.stream;
+        $("#"+id).click(function(){
+          document.getElementById("mainVideo").srcObject = document.getElementById(id).srcObject;
+        })
       }
 
       peerConn.onicecandidate = ((e) => {
         if (e.candidate == null){return}
         sendData({
-          "type" : "save_candidate",
+          "type" : "send_candidate",
           "data" : e.candidate,
           "from" : sessionId,
           "to" : id
@@ -198,7 +251,6 @@
 			isVideo = !isVideo;
 			localStream.getVideoTracks()[0].enabled = isVideo;
 		}
-    
   </script>
 </body>
 </html>
